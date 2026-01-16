@@ -11,15 +11,11 @@ import { TubesBackground } from '@/components/ui/neon-flow';
 
 interface Instance {
   instanceId: string;
+  zapiInstanceId?: string;
   connected: boolean;
+  smartphoneConnected?: boolean;
   state: string;
-  user: {
-    id?: string;
-    name?: string;
-    phone?: string;
-  } | null;
-  reconnectAttempts: number;
-  webhooksCount: number;
+  createdAt?: string;
 }
 
 interface ApiKey {
@@ -37,12 +33,15 @@ export default function Home() {
   const [selectedInstance, setSelectedInstance] = useState<string | null>(null);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [newInstanceName, setNewInstanceName] = useState('');
+  const [zapiInstanceId, setZapiInstanceId] = useState('');
+  const [zapiToken, setZapiToken] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [activeTab, setActiveTab] = useState<'instances' | 'apikeys'>('instances');
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [showApiKey, setShowApiKey] = useState<string | null>(null);
   const [newKeyName, setNewKeyName] = useState('');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://kesher-production.up.railway.app';
   const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'kesher-api-2026-d4f8a7b3e9c1';
@@ -64,9 +63,10 @@ export default function Home() {
     }
   }, [user]);
 
+  // Carregar instâncias Z-API
   const loadInstances = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/instances`, {
+      const response = await fetch(`${API_URL}/api/zapi/instances`, {
         headers: { 'X-API-Key': API_KEY },
       });
       const data = await response.json();
@@ -140,32 +140,46 @@ export default function Home() {
     }
   };
 
-  const createInstance = async () => {
-    if (!newInstanceName.trim()) return;
+  // Adicionar instância Z-API existente
+  const addZapiInstance = async () => {
+    if (!newInstanceName.trim() || !zapiInstanceId.trim() || !zapiToken.trim()) {
+      alert('Preencha todos os campos');
+      return;
+    }
     setIsCreating(true);
     try {
-      const response = await fetch(`${API_URL}/api/instance/create`, {
+      const response = await fetch(`${API_URL}/api/zapi/instance/add`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
-        body: JSON.stringify({ instanceName: newInstanceName }),
+        body: JSON.stringify({ 
+          name: newInstanceName,
+          zapiInstanceId: zapiInstanceId,
+          zapiToken: zapiToken
+        }),
       });
       const data = await response.json();
       if (data.success) {
         setNewInstanceName('');
+        setZapiInstanceId('');
+        setZapiToken('');
+        setShowAddForm(false);
         loadInstances();
         setSelectedInstance(data.instanceId);
-        setTimeout(() => getQRCode(data.instanceId), 2000);
+      } else {
+        alert(data.error || 'Erro ao adicionar instância');
       }
     } catch (error) {
-      console.error('Erro ao criar instância:', error);
+      console.error('Erro ao adicionar instância:', error);
+      alert('Erro ao adicionar instância');
     } finally {
       setIsCreating(false);
     }
   };
 
+  // Obter QR Code via Z-API
   const getQRCode = async (instanceId: string) => {
     try {
-      const response = await fetch(`${API_URL}/api/instance/${instanceId}/qrcode`, {
+      const response = await fetch(`${API_URL}/api/zapi/instance/${instanceId}/qrcode`, {
         headers: { 'X-API-Key': API_KEY },
       });
       const data = await response.json();
@@ -177,10 +191,11 @@ export default function Home() {
     }
   };
 
+  // Remover instância
   const deleteInstance = async (instanceId: string) => {
     if (!confirm(`Remover "${instanceId}"?`)) return;
     try {
-      await fetch(`${API_URL}/api/instance/${instanceId}?clearSession=true`, {
+      await fetch(`${API_URL}/api/zapi/instance/${instanceId}`, {
         method: 'DELETE',
         headers: { 'X-API-Key': API_KEY },
       });
@@ -194,15 +209,16 @@ export default function Home() {
     }
   };
 
-  const resetInstance = async (instanceId: string) => {
+  // Reiniciar instância
+  const restartInstance = async (instanceId: string) => {
     try {
-      await fetch(`${API_URL}/api/instance/${instanceId}/reset`, {
+      await fetch(`${API_URL}/api/zapi/instance/${instanceId}/restart`, {
         method: 'POST',
         headers: { 'X-API-Key': API_KEY },
       });
       setTimeout(() => getQRCode(instanceId), 3000);
     } catch (error) {
-      console.error('Erro ao resetar instância:', error);
+      console.error('Erro ao reiniciar instância:', error);
     }
   };
 
@@ -230,7 +246,7 @@ export default function Home() {
               <FcGoogle className="text-2xl" />
               Entrar com Google
             </button>
-            <p className="text-white/40 text-xs mt-6">Clique no fundo para mudar as cores</p>
+            <p className="text-white/40 text-xs mt-6">Powered by Z-API</p>
           </div>
         </div>
       </TubesBackground>
@@ -245,7 +261,7 @@ export default function Home() {
           <Image src="/logo.png" alt="Kesher" width={50} height={50} />
           <div>
             <h1 className="text-xl font-bold">Kesher Dashboard</h1>
-            <p className="text-sm text-muted-foreground">קֶשֶׁר - Conexão</p>
+            <p className="text-sm text-muted-foreground">קֶשֶׁר - Powered by Z-API</p>
           </div>
         </div>
         <div className="flex items-center gap-4">
@@ -263,7 +279,7 @@ export default function Home() {
             activeTab === 'instances' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-accent'
           }`}
         >
-          <BsWhatsapp className="inline mr-2" /> Instâncias
+          <BsWhatsapp className="inline mr-2" /> Instâncias Z-API
         </button>
         <button
           onClick={() => setActiveTab('apikeys')}
@@ -279,21 +295,53 @@ export default function Home() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-4">
             <div className="glass-card p-4">
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <FiPlus /> Nova Instância
-              </h2>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={newInstanceName}
-                  onChange={(e) => setNewInstanceName(e.target.value)}
-                  placeholder="Nome da instância..."
-                  className="flex-1 bg-card border border-input rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-ring"
-                />
-                <button onClick={createInstance} disabled={isCreating || !newInstanceName.trim()} className="btn-primary disabled:opacity-50">
-                  {isCreating ? 'Criando...' : 'Criar'}
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold flex items-center gap-2">
+                  <FiPlus /> Adicionar Instância Z-API
+                </h2>
+                <button 
+                  onClick={() => setShowAddForm(!showAddForm)}
+                  className="btn-secondary py-2 px-4"
+                >
+                  {showAddForm ? 'Cancelar' : 'Nova Instância'}
                 </button>
               </div>
+              
+              {showAddForm && (
+                <div className="space-y-3 animate-fadeIn">
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Cole os dados da sua instância Z-API (disponível em app.z-api.io)
+                  </p>
+                  <input
+                    type="text"
+                    value={newInstanceName}
+                    onChange={(e) => setNewInstanceName(e.target.value)}
+                    placeholder="Nome amigável (ex: WhatsApp Principal)"
+                    className="w-full bg-card border border-input rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                  <input
+                    type="text"
+                    value={zapiInstanceId}
+                    onChange={(e) => setZapiInstanceId(e.target.value)}
+                    placeholder="Instance ID (ex: 3EA240373A126172229A82761BB89DF3)"
+                    className="w-full bg-card border border-input rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-ring font-mono text-sm"
+                  />
+                  <input
+                    type="text"
+                    value={zapiToken}
+                    onChange={(e) => setZapiToken(e.target.value)}
+                    placeholder="Token (ex: 8F4DA3C4CA0EFA2069E84E7D)"
+                    className="w-full bg-card border border-input rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-ring font-mono text-sm"
+                  />
+                  <button 
+                    onClick={addZapiInstance} 
+                    disabled={isCreating || !newInstanceName.trim() || !zapiInstanceId.trim() || !zapiToken.trim()} 
+                    className="btn-primary w-full disabled:opacity-50"
+                  >
+                    {isCreating ? 'Adicionando...' : 'Adicionar Instância'}
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="glass-card p-4">
@@ -301,7 +349,11 @@ export default function Home() {
                 <BsWhatsapp className="text-green-500" /> Instâncias ({instances.length})
               </h2>
               {instances.length === 0 ? (
-                <p className="text-muted-foreground text-center py-8">Nenhuma instância criada ainda</p>
+                <div className="text-center py-8">
+                  <BsWhatsapp className="text-4xl text-muted-foreground mx-auto mb-4 opacity-50" />
+                  <p className="text-muted-foreground">Nenhuma instância adicionada ainda</p>
+                  <p className="text-sm text-muted-foreground mt-2">Clique em "Nova Instância" para adicionar</p>
+                </div>
               ) : (
                 <div className="space-y-3">
                   {instances.map((instance) => (
@@ -324,12 +376,12 @@ export default function Home() {
                           <div>
                             <p className="font-medium">{instance.instanceId}</p>
                             <p className="text-sm text-muted-foreground">
-                              {instance.connected ? instance.user?.phone || 'Conectado' : instance.state === 'qr_ready' ? 'Aguardando scan' : 'Desconectado'}
+                              {instance.connected ? '✅ Conectado' : instance.smartphoneConnected ? '📱 Smartphone online' : '⏳ Aguardando conexão'}
                             </p>
                           </div>
                         </div>
                         <div className="flex gap-2">
-                          <button onClick={(e) => { e.stopPropagation(); resetInstance(instance.instanceId); }} className="p-2 hover:bg-secondary rounded-lg" title="Resetar">
+                          <button onClick={(e) => { e.stopPropagation(); restartInstance(instance.instanceId); }} className="p-2 hover:bg-secondary rounded-lg" title="Reiniciar">
                             <FiRefreshCw />
                           </button>
                           <button onClick={(e) => { e.stopPropagation(); deleteInstance(instance.instanceId); }} className="p-2 hover:bg-destructive/20 text-destructive rounded-lg" title="Remover">
@@ -364,7 +416,7 @@ export default function Home() {
                   <div className="py-12">
                     <BsWhatsapp className="text-6xl text-green-500 mx-auto mb-4" />
                     <p className="text-muted-foreground">
-                      {instances.find((i) => i.instanceId === selectedInstance)?.connected ? 'Conectado!' : 'Aguardando QR...'}
+                      {instances.find((i) => i.instanceId === selectedInstance)?.connected ? '✅ Conectado!' : 'Carregando QR...'}
                     </p>
                     <button onClick={() => getQRCode(selectedInstance)} className="btn-secondary mt-4">
                       <FiRefreshCw className="mr-2" /> Atualizar
@@ -375,7 +427,7 @@ export default function Home() {
             ) : (
               <div className="text-center py-12 text-muted-foreground">
                 <BsQrCode className="text-6xl mx-auto mb-4 opacity-50" />
-                <p>Selecione uma instância</p>
+                <p>Selecione uma instância para ver o QR Code</p>
               </div>
             )}
           </div>
@@ -446,20 +498,20 @@ export default function Home() {
             </div>
 
             <div className="mt-8">
-              <h3 className="font-semibold mb-4">Exemplos de Uso</h3>
+              <h3 className="font-semibold mb-4">Exemplos de Uso (Z-API)</h3>
               <div className="bg-card border border-border rounded-xl p-4 mb-4">
                 <p className="text-xs text-muted-foreground mb-2">JavaScript / Node.js</p>
                 <pre className="text-sm overflow-x-auto">
-{`const response = await fetch('${API_URL}/api/message/send/text', {
+{`const response = await fetch('${API_URL}/api/zapi/message/send/text', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
     'X-API-Key': 'SUA_CHAVE_AQUI'
   },
   body: JSON.stringify({
-    instanceId: 'sua-instancia',
+    instanceId: 'meu-whatsapp',
     phone: '5511999999999',
-    message: 'Olá do Kesher!'
+    message: 'Olá do Kesher + Z-API!'
   })
 });`}
                 </pre>
