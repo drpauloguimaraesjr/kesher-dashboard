@@ -7,6 +7,7 @@ import Image from 'next/image';
 import { FcGoogle } from 'react-icons/fc';
 import { FiPlus, FiRefreshCw, FiTrash2, FiLogOut, FiCopy, FiKey, FiCheck, FiEye, FiEyeOff } from 'react-icons/fi';
 import { BsWhatsapp, BsQrCode } from 'react-icons/bs';
+import { TubesBackground } from '@/components/ui/neon-flow';
 
 interface Instance {
   instanceId: string;
@@ -46,19 +47,15 @@ export default function Home() {
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://kesher-production.up.railway.app';
   const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'kesher-api-2026-d4f8a7b3e9c1';
 
-  // Auth listener
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user);
       setLoading(false);
-      if (user) {
-        loadApiKeys();
-      }
+      if (user) loadApiKeys();
     });
     return () => unsubscribe();
   }, []);
 
-  // Load instances
   useEffect(() => {
     if (user) {
       loadInstances();
@@ -73,29 +70,23 @@ export default function Home() {
         headers: { 'X-API-Key': API_KEY },
       });
       const data = await response.json();
-      if (data.success) {
-        setInstances(data.instances || []);
-      }
+      if (data.success) setInstances(data.instances || []);
     } catch (error) {
       console.error('Erro ao carregar instâncias:', error);
     }
   };
 
   const loadApiKeys = () => {
-    // Carregar do localStorage (em produção seria do Firestore)
     const saved = localStorage.getItem('kesher-api-keys');
     if (saved) {
       setApiKeys(JSON.parse(saved));
     } else {
-      // Chave padrão
-      const defaultKeys: ApiKey[] = [
-        {
-          id: 'default',
-          name: 'Chave Principal',
-          key: API_KEY,
-          createdAt: new Date().toISOString(),
-        }
-      ];
+      const defaultKeys: ApiKey[] = [{
+        id: 'default',
+        name: 'Chave Principal',
+        key: API_KEY,
+        createdAt: new Date().toISOString(),
+      }];
       setApiKeys(defaultKeys);
       localStorage.setItem('kesher-api-keys', JSON.stringify(defaultKeys));
     }
@@ -103,14 +94,12 @@ export default function Home() {
 
   const generateApiKey = () => {
     if (!newKeyName.trim()) return;
-    
     const newKey: ApiKey = {
       id: `key-${Date.now()}`,
       name: newKeyName,
       key: `kesher-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 10)}`,
       createdAt: new Date().toISOString(),
     };
-    
     const updated = [...apiKeys, newKey];
     setApiKeys(updated);
     localStorage.setItem('kesher-api-keys', JSON.stringify(updated));
@@ -123,7 +112,6 @@ export default function Home() {
       return;
     }
     if (!confirm('Tem certeza que deseja remover esta chave?')) return;
-    
     const updated = apiKeys.filter(k => k.id !== id);
     setApiKeys(updated);
     localStorage.setItem('kesher-api-keys', JSON.stringify(updated));
@@ -158,10 +146,7 @@ export default function Home() {
     try {
       const response = await fetch(`${API_URL}/api/instance/create`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': API_KEY,
-        },
+        headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
         body: JSON.stringify({ instanceName: newInstanceName }),
       });
       const data = await response.json();
@@ -184,11 +169,8 @@ export default function Home() {
         headers: { 'X-API-Key': API_KEY },
       });
       const data = await response.json();
-      if (data.success && data.qrBase64) {
-        setQrCode(data.qrBase64);
-      } else {
-        setQrCode(null);
-      }
+      if (data.success && data.qrBase64) setQrCode(data.qrBase64);
+      else setQrCode(null);
     } catch (error) {
       console.error('Erro ao obter QR Code:', error);
       setQrCode(null);
@@ -196,7 +178,7 @@ export default function Home() {
   };
 
   const deleteInstance = async (instanceId: string) => {
-    if (!confirm(`Tem certeza que deseja remover "${instanceId}"?`)) return;
+    if (!confirm(`Remover "${instanceId}"?`)) return;
     try {
       await fetch(`${API_URL}/api/instance/${instanceId}?clearSession=true`, {
         method: 'DELETE',
@@ -226,61 +208,67 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-500"></div>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
   }
 
+  // LOGIN SCREEN WITH NEON FLOW BACKGROUND
   if (!user) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4">
-        <div className="glass-card p-8 max-w-md w-full text-center animate-fadeIn">
-          <Image src="/logo.png" alt="Kesher" width={200} height={200} className="mx-auto mb-8" />
-          <h1 className="text-3xl font-bold mb-2">קֶשֶׁר</h1>
-          <p className="text-gray-400 mb-8">Sua conexão WhatsApp poderosa</p>
-          <button onClick={handleGoogleLogin} className="btn-secondary w-full flex items-center justify-center gap-3">
-            <FcGoogle className="text-2xl" />
-            Entrar com Google
-          </button>
+      <TubesBackground>
+        <div className="min-h-screen flex flex-col items-center justify-center p-4">
+          <div className="glass-card p-8 max-w-md w-full text-center animate-fadeIn bg-black/50 backdrop-blur-xl border border-white/10 pointer-events-auto">
+            <Image src="/logo.png" alt="Kesher" width={180} height={180} className="mx-auto mb-6" />
+            <h1 className="text-4xl font-bold mb-2 text-white drop-shadow-lg">קֶשֶׁר</h1>
+            <p className="text-white/70 mb-8">Sua conexão WhatsApp poderosa</p>
+            <button 
+              onClick={handleGoogleLogin} 
+              className="w-full flex items-center justify-center gap-3 bg-white text-black font-medium py-3 px-6 rounded-xl hover:bg-gray-100 transition-all"
+            >
+              <FcGoogle className="text-2xl" />
+              Entrar com Google
+            </button>
+            <p className="text-white/40 text-xs mt-6">Clique no fundo para mudar as cores</p>
+          </div>
         </div>
-      </div>
+      </TubesBackground>
     );
   }
 
+  // DASHBOARD
   return (
-    <div className="min-h-screen p-4 md:p-8">
-      {/* Header */}
+    <div className="min-h-screen p-4 md:p-8 bg-background text-foreground">
       <header className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-4">
           <Image src="/logo.png" alt="Kesher" width={50} height={50} />
           <div>
             <h1 className="text-xl font-bold">Kesher Dashboard</h1>
-            <p className="text-sm text-gray-400">קֶשֶׁר - Conexão</p>
+            <p className="text-sm text-muted-foreground">קֶשֶׁר - Conexão</p>
           </div>
         </div>
         <div className="flex items-center gap-4">
-          <span className="text-sm text-gray-400 hidden md:block">{user.email}</span>
+          <span className="text-sm text-muted-foreground hidden md:block">{user.email}</span>
           <button onClick={handleLogout} className="btn-secondary py-2 px-4">
             <FiLogOut />
           </button>
         </div>
       </header>
 
-      {/* Tabs */}
       <div className="flex gap-2 mb-6">
         <button
           onClick={() => setActiveTab('instances')}
-          className={`px-4 py-2 rounded-xl transition ${
-            activeTab === 'instances' ? 'bg-violet-600 text-white' : 'bg-white/10 hover:bg-white/20'
+          className={`px-4 py-2 rounded-xl transition font-medium ${
+            activeTab === 'instances' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-accent'
           }`}
         >
           <BsWhatsapp className="inline mr-2" /> Instâncias
         </button>
         <button
           onClick={() => setActiveTab('apikeys')}
-          className={`px-4 py-2 rounded-xl transition ${
-            activeTab === 'apikeys' ? 'bg-violet-600 text-white' : 'bg-white/10 hover:bg-white/20'
+          className={`px-4 py-2 rounded-xl transition font-medium ${
+            activeTab === 'apikeys' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-accent'
           }`}
         >
           <FiKey className="inline mr-2" /> Chaves de API
@@ -289,7 +277,6 @@ export default function Home() {
 
       {activeTab === 'instances' ? (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Instances list */}
           <div className="lg:col-span-2 space-y-4">
             <div className="glass-card p-4">
               <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -301,13 +288,9 @@ export default function Home() {
                   value={newInstanceName}
                   onChange={(e) => setNewInstanceName(e.target.value)}
                   placeholder="Nome da instância..."
-                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-violet-500"
+                  className="flex-1 bg-card border border-input rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-ring"
                 />
-                <button
-                  onClick={createInstance}
-                  disabled={isCreating || !newInstanceName.trim()}
-                  className="btn-primary disabled:opacity-50"
-                >
+                <button onClick={createInstance} disabled={isCreating || !newInstanceName.trim()} className="btn-primary disabled:opacity-50">
                   {isCreating ? 'Criando...' : 'Criar'}
                 </button>
               </div>
@@ -318,7 +301,7 @@ export default function Home() {
                 <BsWhatsapp className="text-green-500" /> Instâncias ({instances.length})
               </h2>
               {instances.length === 0 ? (
-                <p className="text-gray-400 text-center py-8">Nenhuma instância criada ainda</p>
+                <p className="text-muted-foreground text-center py-8">Nenhuma instância criada ainda</p>
               ) : (
                 <div className="space-y-3">
                   {instances.map((instance) => (
@@ -331,8 +314,8 @@ export default function Home() {
                       }}
                       className={`p-4 rounded-xl cursor-pointer transition-all ${
                         selectedInstance === instance.instanceId
-                          ? 'bg-violet-600/20 border border-violet-500'
-                          : 'bg-white/5 hover:bg-white/10 border border-transparent'
+                          ? 'bg-primary/10 border-2 border-primary'
+                          : 'bg-card hover:bg-accent border border-border'
                       }`}
                     >
                       <div className="flex items-center justify-between">
@@ -340,16 +323,16 @@ export default function Home() {
                           <div className={`w-3 h-3 rounded-full ${instance.connected ? 'bg-green-500' : 'bg-yellow-500'}`} />
                           <div>
                             <p className="font-medium">{instance.instanceId}</p>
-                            <p className="text-sm text-gray-400">
+                            <p className="text-sm text-muted-foreground">
                               {instance.connected ? instance.user?.phone || 'Conectado' : instance.state === 'qr_ready' ? 'Aguardando scan' : 'Desconectado'}
                             </p>
                           </div>
                         </div>
                         <div className="flex gap-2">
-                          <button onClick={(e) => { e.stopPropagation(); resetInstance(instance.instanceId); }} className="p-2 hover:bg-white/10 rounded-lg" title="Resetar">
+                          <button onClick={(e) => { e.stopPropagation(); resetInstance(instance.instanceId); }} className="p-2 hover:bg-secondary rounded-lg" title="Resetar">
                             <FiRefreshCw />
                           </button>
-                          <button onClick={(e) => { e.stopPropagation(); deleteInstance(instance.instanceId); }} className="p-2 hover:bg-red-500/20 text-red-400 rounded-lg" title="Remover">
+                          <button onClick={(e) => { e.stopPropagation(); deleteInstance(instance.instanceId); }} className="p-2 hover:bg-destructive/20 text-destructive rounded-lg" title="Remover">
                             <FiTrash2 />
                           </button>
                         </div>
@@ -361,37 +344,36 @@ export default function Home() {
             </div>
           </div>
 
-          {/* QR Code */}
           <div className="glass-card p-6">
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <BsQrCode /> QR Code
             </h2>
             {selectedInstance ? (
               <div className="text-center">
-                <p className="text-sm text-gray-400 mb-4">
-                  Instância: <span className="text-white font-medium">{selectedInstance}</span>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Instância: <span className="font-medium text-foreground">{selectedInstance}</span>
                 </p>
                 {qrCode ? (
                   <div className="animate-fadeIn">
                     <div className="qr-container inline-block animate-pulse-glow">
                       <img src={qrCode} alt="QR Code" className="w-64 h-64" />
                     </div>
-                    <p className="text-sm text-gray-400 mt-4">Escaneie com seu WhatsApp</p>
+                    <p className="text-sm text-muted-foreground mt-4">Escaneie com seu WhatsApp</p>
                   </div>
                 ) : (
                   <div className="py-12">
                     <BsWhatsapp className="text-6xl text-green-500 mx-auto mb-4" />
-                    <p className="text-gray-400">
+                    <p className="text-muted-foreground">
                       {instances.find((i) => i.instanceId === selectedInstance)?.connected ? 'Conectado!' : 'Aguardando QR...'}
                     </p>
                     <button onClick={() => getQRCode(selectedInstance)} className="btn-secondary mt-4">
-                      <FiRefreshCw /> Atualizar
+                      <FiRefreshCw className="mr-2" /> Atualizar
                     </button>
                   </div>
                 )}
               </div>
             ) : (
-              <div className="text-center py-12 text-gray-400">
+              <div className="text-center py-12 text-muted-foreground">
                 <BsQrCode className="text-6xl mx-auto mb-4 opacity-50" />
                 <p>Selecione uma instância</p>
               </div>
@@ -399,7 +381,6 @@ export default function Home() {
           </div>
         </div>
       ) : (
-        /* API Keys Tab */
         <div className="max-w-4xl">
           <div className="glass-card p-6 mb-6">
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -411,7 +392,7 @@ export default function Home() {
                 value={newKeyName}
                 onChange={(e) => setNewKeyName(e.target.value)}
                 placeholder="Nome da chave (ex: NutriBuddy, Meu App...)"
-                className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-violet-500"
+                className="flex-1 bg-card border border-input rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-ring"
               />
               <button onClick={generateApiKey} disabled={!newKeyName.trim()} className="btn-primary disabled:opacity-50">
                 Gerar Chave
@@ -424,65 +405,50 @@ export default function Home() {
               <FiKey /> Suas Chaves de API ({apiKeys.length})
             </h2>
             
-            {/* Info box */}
-            <div className="bg-violet-600/20 border border-violet-500/30 rounded-xl p-4 mb-6">
+            <div className="bg-primary/10 border border-primary/20 rounded-xl p-4 mb-6">
               <p className="text-sm">
-                <strong>Como usar:</strong> Adicione o header <code className="bg-black/30 px-2 py-1 rounded">X-API-Key: SUA_CHAVE</code> em todas as requisições para a API.
+                <strong>Como usar:</strong> Adicione o header <code className="bg-secondary px-2 py-1 rounded">X-API-Key: SUA_CHAVE</code> em todas as requisições.
               </p>
               <p className="text-sm mt-2">
-                <strong>URL da API:</strong> <code className="bg-black/30 px-2 py-1 rounded">{API_URL}</code>
+                <strong>URL da API:</strong> <code className="bg-secondary px-2 py-1 rounded">{API_URL}</code>
               </p>
             </div>
 
             <div className="space-y-4">
               {apiKeys.map((apiKey) => (
-                <div key={apiKey.id} className="bg-white/5 rounded-xl p-4 border border-white/10">
+                <div key={apiKey.id} className="bg-card rounded-xl p-4 border border-border">
                   <div className="flex items-center justify-between mb-3">
                     <div>
                       <p className="font-medium">{apiKey.name}</p>
-                      <p className="text-xs text-gray-400">
+                      <p className="text-xs text-muted-foreground">
                         Criada em {new Date(apiKey.createdAt).toLocaleDateString('pt-BR')}
                       </p>
                     </div>
                     <div className="flex gap-2">
-                      <button
-                        onClick={() => setShowApiKey(showApiKey === apiKey.id ? null : apiKey.id)}
-                        className="p-2 hover:bg-white/10 rounded-lg transition"
-                        title={showApiKey === apiKey.id ? 'Ocultar' : 'Mostrar'}
-                      >
+                      <button onClick={() => setShowApiKey(showApiKey === apiKey.id ? null : apiKey.id)} className="p-2 hover:bg-secondary rounded-lg transition" title={showApiKey === apiKey.id ? 'Ocultar' : 'Mostrar'}>
                         {showApiKey === apiKey.id ? <FiEyeOff /> : <FiEye />}
                       </button>
-                      <button
-                        onClick={() => copyToClipboard(apiKey.key, apiKey.id)}
-                        className="p-2 hover:bg-white/10 rounded-lg transition"
-                        title="Copiar"
-                      >
+                      <button onClick={() => copyToClipboard(apiKey.key, apiKey.id)} className="p-2 hover:bg-secondary rounded-lg transition" title="Copiar">
                         {copiedKey === apiKey.id ? <FiCheck className="text-green-500" /> : <FiCopy />}
                       </button>
                       {apiKey.id !== 'default' && (
-                        <button
-                          onClick={() => deleteApiKey(apiKey.id)}
-                          className="p-2 hover:bg-red-500/20 text-red-400 rounded-lg transition"
-                          title="Remover"
-                        >
+                        <button onClick={() => deleteApiKey(apiKey.id)} className="p-2 hover:bg-destructive/20 text-destructive rounded-lg transition" title="Remover">
                           <FiTrash2 />
                         </button>
                       )}
                     </div>
                   </div>
-                  <div className="bg-black/30 rounded-lg p-3 font-mono text-sm break-all">
+                  <div className="bg-secondary rounded-lg p-3 font-mono text-sm break-all">
                     {showApiKey === apiKey.id ? apiKey.key : '•'.repeat(40)}
                   </div>
                 </div>
               ))}
             </div>
 
-            {/* Usage examples */}
             <div className="mt-8">
               <h3 className="font-semibold mb-4">Exemplos de Uso</h3>
-              
-              <div className="bg-black/30 rounded-xl p-4 mb-4">
-                <p className="text-xs text-gray-400 mb-2">JavaScript / Node.js</p>
+              <div className="bg-card border border-border rounded-xl p-4 mb-4">
+                <p className="text-xs text-muted-foreground mb-2">JavaScript / Node.js</p>
                 <pre className="text-sm overflow-x-auto">
 {`const response = await fetch('${API_URL}/api/message/send/text', {
   method: 'POST',
@@ -496,16 +462,6 @@ export default function Home() {
     message: 'Olá do Kesher!'
   })
 });`}
-                </pre>
-              </div>
-
-              <div className="bg-black/30 rounded-xl p-4">
-                <p className="text-xs text-gray-400 mb-2">cURL</p>
-                <pre className="text-sm overflow-x-auto">
-{`curl -X POST ${API_URL}/api/message/send/text \\
-  -H "Content-Type: application/json" \\
-  -H "X-API-Key: SUA_CHAVE_AQUI" \\
-  -d '{"instanceId":"sua-instancia","phone":"5511999999999","message":"Olá!"}'`}
                 </pre>
               </div>
             </div>
