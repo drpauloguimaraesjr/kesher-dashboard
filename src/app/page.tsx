@@ -92,10 +92,14 @@ export default function Home() {
   useEffect(() => {
     if (user) {
       loadInstances();
-      const interval = setInterval(loadInstances, 10000);
+      loadMessageLogs();
+      const interval = setInterval(() => {
+        loadInstances();
+        if (activeTab === 'logs') loadMessageLogs();
+      }, 5000);
       return () => clearInterval(interval);
     }
-  }, [user]);
+  }, [user, activeTab]);
 
   // Carregar instâncias Z-API
   const loadInstances = async () => {
@@ -142,10 +146,22 @@ export default function Home() {
     }
   };
 
-  const loadMessageLogs = () => {
-    const saved = localStorage.getItem('kesher-message-logs');
-    if (saved) {
-      setMessageLogs(JSON.parse(saved).slice(0, 50)); // Keep last 50 logs
+  const loadMessageLogs = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/zapi/logs`, {
+        headers: { 'X-API-Key': API_KEY },
+      });
+      const data = await response.json();
+      if (data.success) {
+        setMessageLogs(data.logs || []);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar logs:', error);
+      // Fallback para localStorage
+      const saved = localStorage.getItem('kesher-message-logs');
+      if (saved) {
+        setMessageLogs(JSON.parse(saved).slice(0, 50));
+      }
     }
   };
 
@@ -723,45 +739,91 @@ export default function Home() {
           <div className="glass-card p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold flex items-center gap-2">
-                <FiActivity /> Logs de Mensagens
+                <FiActivity /> Logs de Mensagens ({messageLogs.length})
               </h2>
-              <button 
-                onClick={() => { setMessageLogs([]); localStorage.removeItem('kesher-message-logs'); }}
-                className="btn-secondary py-1 px-3 text-sm"
-              >
-                Limpar Logs
-              </button>
+              <div className="flex gap-2">
+                <button 
+                  onClick={loadMessageLogs}
+                  className="btn-secondary py-1 px-3 text-sm"
+                >
+                  <FiRefreshCw className="inline mr-1" /> Atualizar
+                </button>
+                <button 
+                  onClick={async () => { 
+                    try {
+                      await fetch(`${API_URL}/api/zapi/logs`, {
+                        method: 'DELETE',
+                        headers: { 'X-API-Key': API_KEY },
+                      });
+                      setMessageLogs([]);
+                    } catch (e) {
+                      console.error(e);
+                    }
+                  }}
+                  className="btn-secondary py-1 px-3 text-sm text-destructive"
+                >
+                  Limpar Logs
+                </button>
+              </div>
             </div>
             
             {messageLogs.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <FiMessageSquare className="text-4xl mx-auto mb-4 opacity-50" />
                 <p>Nenhuma mensagem registrada ainda</p>
-                <p className="text-sm mt-2">Os logs aparecerão quando você enviar mensagens de teste</p>
+                <p className="text-sm mt-2">Os logs aparecerão quando mensagens forem recebidas via WhatsApp</p>
               </div>
             ) : (
               <div className="space-y-3 max-h-[600px] overflow-y-auto">
-                {messageLogs.map((log) => (
-                  <div key={log.id} className={`p-4 rounded-xl border ${log.type === 'sent' ? 'bg-blue-500/10 border-blue-500/30' : 'bg-green-500/10 border-green-500/30'}`}>
+                {messageLogs.map((log: any) => (
+                  <div key={log.id} className={`p-4 rounded-xl border ${log.direction === 'sent' ? 'bg-blue-500/10 border-blue-500/30' : 'bg-green-500/10 border-green-500/30'}`}>
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        {log.type === 'sent' ? (
+                        {log.direction === 'sent' ? (
                           <span className="text-blue-500">📤 Enviada</span>
                         ) : (
                           <span className="text-green-500">📥 Recebida</span>
                         )}
+                        <span className="text-sm font-medium">{log.senderName || 'Desconhecido'}</span>
                         <span className="text-sm text-muted-foreground">
                           <FiPhone className="inline mr-1" />{log.phone}
                         </span>
+                        {log.type !== 'text' && (
+                          <span className="text-xs bg-primary/20 px-2 py-0.5 rounded">
+                            {log.type === 'image' && '🖼️ Imagem'}
+                            {log.type === 'audio' && '🎵 Áudio'}
+                            {log.type === 'video' && '🎬 Vídeo'}
+                            {log.type === 'document' && '📄 Documento'}
+                            {log.type === 'sticker' && '🎨 Sticker'}
+                          </span>
+                        )}
                       </div>
                       <span className="text-xs text-muted-foreground">
                         {new Date(log.timestamp).toLocaleString('pt-BR')}
                       </span>
                     </div>
-                    <p className="text-sm">{log.message}</p>
-                    <span className={`text-xs ${log.status === 'delivered' ? 'text-green-500' : 'text-yellow-500'}`}>
-                      {log.status === 'delivered' ? '✓ Entregue' : '⏳ Pendente'}
-                    </span>
+                    
+                    {/* Preview de mídia */}
+                    {log.mediaUrl && log.type === 'image' && (
+                      <div className="mb-2">
+                        <img src={log.mediaUrl} alt="Imagem" className="max-w-[200px] max-h-[200px] rounded-lg object-cover" />
+                      </div>
+                    )}
+                    
+                    {log.message && (
+                      <p className="text-sm">{log.message}</p>
+                    )}
+                    
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className={`text-xs ${log.status === 'delivered' ? 'text-green-500' : log.status === 'failed' ? 'text-red-500' : 'text-yellow-500'}`}>
+                        {log.status === 'delivered' && '✓ Encaminhado'}
+                        {log.status === 'failed' && '✗ Falhou'}
+                        {log.status !== 'delivered' && log.status !== 'failed' && '⏳ Pendente'}
+                      </span>
+                      {log.messageId && (
+                        <span className="text-xs text-muted-foreground font-mono">ID: {log.messageId.substring(0, 12)}...</span>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
