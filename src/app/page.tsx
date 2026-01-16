@@ -5,7 +5,7 @@ import { auth, googleProvider } from '@/lib/firebase';
 import { signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
 import Image from 'next/image';
 import { FcGoogle } from 'react-icons/fc';
-import { FiPlus, FiRefreshCw, FiTrash2, FiLogOut, FiCopy, FiKey, FiCheck, FiEye, FiEyeOff } from 'react-icons/fi';
+import { FiPlus, FiRefreshCw, FiTrash2, FiLogOut, FiCopy, FiKey, FiCheck, FiEye, FiEyeOff, FiLink, FiActivity, FiPhone, FiMessageSquare, FiSend } from 'react-icons/fi';
 import { BsWhatsapp, BsQrCode } from 'react-icons/bs';
 import { TubesBackground } from '@/components/ui/neon-flow';
 
@@ -16,6 +16,7 @@ interface Instance {
   smartphoneConnected?: boolean;
   state: string;
   createdAt?: string;
+  phone?: string;
 }
 
 interface ApiKey {
@@ -24,6 +25,22 @@ interface ApiKey {
   key: string;
   createdAt: string;
   lastUsed?: string;
+}
+
+interface WebhookDestination {
+  id: string;
+  name: string;
+  url: string;
+  active: boolean;
+}
+
+interface MessageLog {
+  id: string;
+  type: 'sent' | 'received';
+  phone: string;
+  message: string;
+  timestamp: string;
+  status: string;
 }
 
 export default function Home() {
@@ -36,12 +53,25 @@ export default function Home() {
   const [zapiInstanceId, setZapiInstanceId] = useState('');
   const [zapiToken, setZapiToken] = useState('');
   const [isCreating, setIsCreating] = useState(false);
-  const [activeTab, setActiveTab] = useState<'instances' | 'apikeys'>('instances');
+  const [activeTab, setActiveTab] = useState<'instances' | 'apikeys' | 'webhooks' | 'logs'>('instances');
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [showApiKey, setShowApiKey] = useState<string | null>(null);
   const [newKeyName, setNewKeyName] = useState('');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  
+  // Webhooks state
+  const [webhooks, setWebhooks] = useState<WebhookDestination[]>([]);
+  const [newWebhookName, setNewWebhookName] = useState('');
+  const [newWebhookUrl, setNewWebhookUrl] = useState('');
+  
+  // Message logs state
+  const [messageLogs, setMessageLogs] = useState<MessageLog[]>([]);
+  
+  // Test message state
+  const [testPhone, setTestPhone] = useState('');
+  const [testMessage, setTestMessage] = useState('');
+  const [sendingTest, setSendingTest] = useState(false);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://kesher-production.up.railway.app';
   const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'kesher-api-2026-d4f8a7b3e9c1';
@@ -50,7 +80,11 @@ export default function Home() {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user);
       setLoading(false);
-      if (user) loadApiKeys();
+      if (user) {
+        loadApiKeys();
+        loadWebhooks();
+        loadMessageLogs();
+      }
     });
     return () => unsubscribe();
   }, []);
@@ -92,6 +126,40 @@ export default function Home() {
     }
   };
 
+  const loadWebhooks = () => {
+    const saved = localStorage.getItem('kesher-webhooks');
+    if (saved) {
+      setWebhooks(JSON.parse(saved));
+    } else {
+      const defaultWebhooks: WebhookDestination[] = [{
+        id: 'nutribuddy',
+        name: 'NutriBuddy',
+        url: 'https://web-production-c9eaf.up.railway.app/api/whatsapp-kesher/webhook',
+        active: true,
+      }];
+      setWebhooks(defaultWebhooks);
+      localStorage.setItem('kesher-webhooks', JSON.stringify(defaultWebhooks));
+    }
+  };
+
+  const loadMessageLogs = () => {
+    const saved = localStorage.getItem('kesher-message-logs');
+    if (saved) {
+      setMessageLogs(JSON.parse(saved).slice(0, 50)); // Keep last 50 logs
+    }
+  };
+
+  const addMessageLog = (log: Omit<MessageLog, 'id' | 'timestamp'>) => {
+    const newLog: MessageLog = {
+      ...log,
+      id: `log-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+    };
+    const updated = [newLog, ...messageLogs].slice(0, 50);
+    setMessageLogs(updated);
+    localStorage.setItem('kesher-message-logs', JSON.stringify(updated));
+  };
+
   const generateApiKey = () => {
     if (!newKeyName.trim()) return;
     const newKey: ApiKey = {
@@ -115,6 +183,34 @@ export default function Home() {
     const updated = apiKeys.filter(k => k.id !== id);
     setApiKeys(updated);
     localStorage.setItem('kesher-api-keys', JSON.stringify(updated));
+  };
+
+  const addWebhook = () => {
+    if (!newWebhookName.trim() || !newWebhookUrl.trim()) return;
+    const newWebhook: WebhookDestination = {
+      id: `webhook-${Date.now()}`,
+      name: newWebhookName,
+      url: newWebhookUrl,
+      active: true,
+    };
+    const updated = [...webhooks, newWebhook];
+    setWebhooks(updated);
+    localStorage.setItem('kesher-webhooks', JSON.stringify(updated));
+    setNewWebhookName('');
+    setNewWebhookUrl('');
+  };
+
+  const toggleWebhook = (id: string) => {
+    const updated = webhooks.map(w => w.id === id ? { ...w, active: !w.active } : w);
+    setWebhooks(updated);
+    localStorage.setItem('kesher-webhooks', JSON.stringify(updated));
+  };
+
+  const deleteWebhook = (id: string) => {
+    if (!confirm('Remover este webhook?')) return;
+    const updated = webhooks.filter(w => w.id !== id);
+    setWebhooks(updated);
+    localStorage.setItem('kesher-webhooks', JSON.stringify(updated));
   };
 
   const copyToClipboard = async (text: string, keyId: string) => {
@@ -176,6 +272,44 @@ export default function Home() {
     }
   };
 
+  // Enviar mensagem de teste
+  const sendTestMessage = async () => {
+    if (!selectedInstance || !testPhone.trim() || !testMessage.trim()) {
+      alert('Selecione uma instância e preencha telefone e mensagem');
+      return;
+    }
+    setSendingTest(true);
+    try {
+      const response = await fetch(`${API_URL}/api/zapi/message/send/text`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
+        body: JSON.stringify({
+          instanceId: selectedInstance,
+          phone: testPhone,
+          message: testMessage
+        }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        addMessageLog({
+          type: 'sent',
+          phone: testPhone,
+          message: testMessage,
+          status: 'delivered'
+        });
+        alert('✅ Mensagem enviada com sucesso!');
+        setTestMessage('');
+      } else {
+        alert('❌ Erro: ' + (data.error || 'Falha ao enviar'));
+      }
+    } catch (error) {
+      console.error('Erro ao enviar mensagem:', error);
+      alert('Erro ao enviar mensagem');
+    } finally {
+      setSendingTest(false);
+    }
+  };
+
   // Obter QR Code via Z-API
   const getQRCode = async (instanceId: string) => {
     try {
@@ -230,7 +364,7 @@ export default function Home() {
     );
   }
 
-  // LOGIN SCREEN WITH NEON FLOW BACKGROUND
+  // LOGIN SCREEN
   if (!user) {
     return (
       <TubesBackground>
@@ -272,14 +406,31 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="flex gap-2 mb-6">
+      {/* TABS */}
+      <div className="flex flex-wrap gap-2 mb-6">
         <button
           onClick={() => setActiveTab('instances')}
           className={`px-4 py-2 rounded-xl transition font-medium ${
             activeTab === 'instances' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-accent'
           }`}
         >
-          <BsWhatsapp className="inline mr-2" /> Instâncias Z-API
+          <BsWhatsapp className="inline mr-2" /> Instâncias
+        </button>
+        <button
+          onClick={() => setActiveTab('webhooks')}
+          className={`px-4 py-2 rounded-xl transition font-medium ${
+            activeTab === 'webhooks' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-accent'
+          }`}
+        >
+          <FiLink className="inline mr-2" /> Webhooks
+        </button>
+        <button
+          onClick={() => setActiveTab('logs')}
+          className={`px-4 py-2 rounded-xl transition font-medium ${
+            activeTab === 'logs' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-accent'
+          }`}
+        >
+          <FiActivity className="inline mr-2" /> Logs
         </button>
         <button
           onClick={() => setActiveTab('apikeys')}
@@ -291,9 +442,11 @@ export default function Home() {
         </button>
       </div>
 
-      {activeTab === 'instances' ? (
+      {/* INSTANCES TAB */}
+      {activeTab === 'instances' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-4">
+            {/* Add Instance Form */}
             <div className="glass-card p-4">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold flex items-center gap-2">
@@ -344,6 +497,7 @@ export default function Home() {
               )}
             </div>
 
+            {/* Instances List */}
             <div className="glass-card p-4">
               <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <BsWhatsapp className="text-green-500" /> Instâncias ({instances.length})
@@ -352,7 +506,6 @@ export default function Home() {
                 <div className="text-center py-8">
                   <BsWhatsapp className="text-4xl text-muted-foreground mx-auto mb-4 opacity-50" />
                   <p className="text-muted-foreground">Nenhuma instância adicionada ainda</p>
-                  <p className="text-sm text-muted-foreground mt-2">Clique em "Nova Instância" para adicionar</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -372,12 +525,24 @@ export default function Home() {
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <div className={`w-3 h-3 rounded-full ${instance.connected ? 'bg-green-500' : 'bg-yellow-500'}`} />
+                          <div className={`w-3 h-3 rounded-full ${instance.connected ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'}`} />
                           <div>
                             <p className="font-medium">{instance.instanceId}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {instance.connected ? '✅ Conectado' : instance.smartphoneConnected ? '📱 Smartphone online' : '⏳ Aguardando conexão'}
-                            </p>
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              {instance.connected ? (
+                                <>
+                                  <span className="text-green-500">✅ Conectado</span>
+                                  {instance.smartphoneConnected && <span>📱 Online</span>}
+                                </>
+                              ) : (
+                                <span className="text-yellow-500">⏳ Aguardando conexão</span>
+                              )}
+                            </div>
+                            {instance.zapiInstanceId && (
+                              <p className="text-xs text-muted-foreground font-mono mt-1">
+                                ID: {instance.zapiInstanceId.substring(0, 12)}...
+                              </p>
+                            )}
                           </div>
                         </div>
                         <div className="flex gap-2">
@@ -394,8 +559,41 @@ export default function Home() {
                 </div>
               )}
             </div>
+
+            {/* Test Message */}
+            {selectedInstance && instances.find(i => i.instanceId === selectedInstance)?.connected && (
+              <div className="glass-card p-4">
+                <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <FiSend /> Enviar Mensagem de Teste
+                </h2>
+                <div className="space-y-3">
+                  <input
+                    type="text"
+                    value={testPhone}
+                    onChange={(e) => setTestPhone(e.target.value)}
+                    placeholder="Telefone (ex: 5547999999999)"
+                    className="w-full bg-card border border-input rounded-xl px-4 py-3"
+                  />
+                  <textarea
+                    value={testMessage}
+                    onChange={(e) => setTestMessage(e.target.value)}
+                    placeholder="Mensagem..."
+                    rows={3}
+                    className="w-full bg-card border border-input rounded-xl px-4 py-3 resize-none"
+                  />
+                  <button 
+                    onClick={sendTestMessage}
+                    disabled={sendingTest || !testPhone || !testMessage}
+                    className="btn-primary w-full disabled:opacity-50"
+                  >
+                    {sendingTest ? 'Enviando...' : 'Enviar Mensagem'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
+          {/* QR Code Panel */}
           <div className="glass-card p-6">
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <BsQrCode /> QR Code
@@ -427,12 +625,153 @@ export default function Home() {
             ) : (
               <div className="text-center py-12 text-muted-foreground">
                 <BsQrCode className="text-6xl mx-auto mb-4 opacity-50" />
-                <p>Selecione uma instância para ver o QR Code</p>
+                <p>Selecione uma instância</p>
               </div>
             )}
           </div>
         </div>
-      ) : (
+      )}
+
+      {/* WEBHOOKS TAB */}
+      {activeTab === 'webhooks' && (
+        <div className="max-w-4xl space-y-6">
+          <div className="glass-card p-6">
+            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <FiPlus /> Adicionar Destino de Webhook
+            </h2>
+            <div className="space-y-3">
+              <input
+                type="text"
+                value={newWebhookName}
+                onChange={(e) => setNewWebhookName(e.target.value)}
+                placeholder="Nome do app (ex: NutriBuddy)"
+                className="w-full bg-card border border-input rounded-xl px-4 py-3"
+              />
+              <input
+                type="url"
+                value={newWebhookUrl}
+                onChange={(e) => setNewWebhookUrl(e.target.value)}
+                placeholder="URL do webhook (ex: https://meuapp.com/webhook)"
+                className="w-full bg-card border border-input rounded-xl px-4 py-3 font-mono text-sm"
+              />
+              <button 
+                onClick={addWebhook}
+                disabled={!newWebhookName.trim() || !newWebhookUrl.trim()}
+                className="btn-primary disabled:opacity-50"
+              >
+                Adicionar Webhook
+              </button>
+            </div>
+          </div>
+
+          <div className="glass-card p-6">
+            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <FiLink /> Destinos Configurados ({webhooks.length})
+            </h2>
+            <div className="bg-primary/10 border border-primary/20 rounded-xl p-4 mb-6">
+              <p className="text-sm">
+                <strong>URL do Webhook Kesher:</strong>
+              </p>
+              <code className="block bg-secondary px-3 py-2 rounded mt-2 text-sm break-all">
+                https://kesher-production.up.railway.app/api/zapi/webhook
+              </code>
+              <p className="text-xs text-muted-foreground mt-2">
+                Configure esta URL no Z-API para receber eventos
+              </p>
+            </div>
+            
+            {webhooks.length === 0 ? (
+              <p className="text-muted-foreground text-center py-8">Nenhum destino configurado</p>
+            ) : (
+              <div className="space-y-3">
+                {webhooks.map((webhook) => (
+                  <div key={webhook.id} className={`p-4 rounded-xl border ${webhook.active ? 'bg-card border-green-500/30' : 'bg-muted/50 border-border opacity-60'}`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-2 h-2 rounded-full ${webhook.active ? 'bg-green-500' : 'bg-gray-400'}`} />
+                          <p className="font-medium">{webhook.name}</p>
+                        </div>
+                        <p className="text-sm text-muted-foreground font-mono truncate mt-1">{webhook.url}</p>
+                      </div>
+                      <div className="flex gap-2 ml-4">
+                        <button 
+                          onClick={() => toggleWebhook(webhook.id)}
+                          className={`px-3 py-1 rounded-lg text-sm ${webhook.active ? 'bg-green-500/20 text-green-500' : 'bg-secondary'}`}
+                        >
+                          {webhook.active ? 'Ativo' : 'Inativo'}
+                        </button>
+                        <button 
+                          onClick={() => deleteWebhook(webhook.id)}
+                          className="p-2 hover:bg-destructive/20 text-destructive rounded-lg"
+                        >
+                          <FiTrash2 />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* LOGS TAB */}
+      {activeTab === 'logs' && (
+        <div className="max-w-4xl">
+          <div className="glass-card p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                <FiActivity /> Logs de Mensagens
+              </h2>
+              <button 
+                onClick={() => { setMessageLogs([]); localStorage.removeItem('kesher-message-logs'); }}
+                className="btn-secondary py-1 px-3 text-sm"
+              >
+                Limpar Logs
+              </button>
+            </div>
+            
+            {messageLogs.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <FiMessageSquare className="text-4xl mx-auto mb-4 opacity-50" />
+                <p>Nenhuma mensagem registrada ainda</p>
+                <p className="text-sm mt-2">Os logs aparecerão quando você enviar mensagens de teste</p>
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-[600px] overflow-y-auto">
+                {messageLogs.map((log) => (
+                  <div key={log.id} className={`p-4 rounded-xl border ${log.type === 'sent' ? 'bg-blue-500/10 border-blue-500/30' : 'bg-green-500/10 border-green-500/30'}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        {log.type === 'sent' ? (
+                          <span className="text-blue-500">📤 Enviada</span>
+                        ) : (
+                          <span className="text-green-500">📥 Recebida</span>
+                        )}
+                        <span className="text-sm text-muted-foreground">
+                          <FiPhone className="inline mr-1" />{log.phone}
+                        </span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(log.timestamp).toLocaleString('pt-BR')}
+                      </span>
+                    </div>
+                    <p className="text-sm">{log.message}</p>
+                    <span className={`text-xs ${log.status === 'delivered' ? 'text-green-500' : 'text-yellow-500'}`}>
+                      {log.status === 'delivered' ? '✓ Entregue' : '⏳ Pendente'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* API KEYS TAB */}
+      {activeTab === 'apikeys' && (
         <div className="max-w-4xl">
           <div className="glass-card p-6 mb-6">
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -459,7 +798,7 @@ export default function Home() {
             
             <div className="bg-primary/10 border border-primary/20 rounded-xl p-4 mb-6">
               <p className="text-sm">
-                <strong>Como usar:</strong> Adicione o header <code className="bg-secondary px-2 py-1 rounded">X-API-Key: SUA_CHAVE</code> em todas as requisições.
+                <strong>Como usar:</strong> Adicione o header <code className="bg-secondary px-2 py-1 rounded">X-API-Key: SUA_CHAVE</code>
               </p>
               <p className="text-sm mt-2">
                 <strong>URL da API:</strong> <code className="bg-secondary px-2 py-1 rounded">{API_URL}</code>
@@ -477,14 +816,14 @@ export default function Home() {
                       </p>
                     </div>
                     <div className="flex gap-2">
-                      <button onClick={() => setShowApiKey(showApiKey === apiKey.id ? null : apiKey.id)} className="p-2 hover:bg-secondary rounded-lg transition" title={showApiKey === apiKey.id ? 'Ocultar' : 'Mostrar'}>
+                      <button onClick={() => setShowApiKey(showApiKey === apiKey.id ? null : apiKey.id)} className="p-2 hover:bg-secondary rounded-lg transition">
                         {showApiKey === apiKey.id ? <FiEyeOff /> : <FiEye />}
                       </button>
-                      <button onClick={() => copyToClipboard(apiKey.key, apiKey.id)} className="p-2 hover:bg-secondary rounded-lg transition" title="Copiar">
+                      <button onClick={() => copyToClipboard(apiKey.key, apiKey.id)} className="p-2 hover:bg-secondary rounded-lg transition">
                         {copiedKey === apiKey.id ? <FiCheck className="text-green-500" /> : <FiCopy />}
                       </button>
                       {apiKey.id !== 'default' && (
-                        <button onClick={() => deleteApiKey(apiKey.id)} className="p-2 hover:bg-destructive/20 text-destructive rounded-lg transition" title="Remover">
+                        <button onClick={() => deleteApiKey(apiKey.id)} className="p-2 hover:bg-destructive/20 text-destructive rounded-lg transition">
                           <FiTrash2 />
                         </button>
                       )}
@@ -495,27 +834,6 @@ export default function Home() {
                   </div>
                 </div>
               ))}
-            </div>
-
-            <div className="mt-8">
-              <h3 className="font-semibold mb-4">Exemplos de Uso (Z-API)</h3>
-              <div className="bg-card border border-border rounded-xl p-4 mb-4">
-                <p className="text-xs text-muted-foreground mb-2">JavaScript / Node.js</p>
-                <pre className="text-sm overflow-x-auto">
-{`const response = await fetch('${API_URL}/api/zapi/message/send/text', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'X-API-Key': 'SUA_CHAVE_AQUI'
-  },
-  body: JSON.stringify({
-    instanceId: 'meu-whatsapp',
-    phone: '5511999999999',
-    message: 'Olá do Kesher + Z-API!'
-  })
-});`}
-                </pre>
-              </div>
             </div>
           </div>
         </div>
