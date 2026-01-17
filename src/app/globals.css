@@ -118,9 +118,14 @@
 
 body {
   font-family: var(--font-sans);
-  background: var(--background);
+  background: transparent;
   color: var(--foreground);
   min-height: 100vh;
+}
+
+/* Background base para aparecer atrás do canvas 3D */
+html {
+  background: var(--background);
 }
 
 /* Glass card */
