@@ -87,7 +87,7 @@ export function TubesBackground({
 
   return (
     <div 
-      className={cn("relative w-full h-full min-h-screen overflow-hidden bg-black", className)}
+      className={cn("relative w-full h-full min-h-screen overflow-hidden", className)}
       onClick={handleClick}
     >
       <canvas 
